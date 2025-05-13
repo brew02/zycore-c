@@ -4,35 +4,39 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // TODO: Support ZYAN_FORCE_ASSERTS
+    const use_asserts = b.option(bool, "ZYAN_FORCE_ASSERTS", "Build Zycore with asserts in release builds") orelse false;
     const shared = b.option(bool, "ZYCORE_BUILD_SHARED_LIB", "Build Zycore as a shared library") orelse false;
     const no_libc = b.option(bool, "ZYAN_NO_LIBC", "Build Zycore without libc") orelse false;
     const dev_build = b.option(bool, "ZYAN_DEV_MODE", "Build Zycore in developer mode") orelse false;
     const wpo = b.option(bool, "ZYAN_WHOLE_PROGRAM_OPTIMIZATION", "Build Zycore with whole program optimization") orelse false;
-    var zycore: *std.Build.Step.Compile = undefined;
 
-    // TODO: Use a module instead so that we can
-    // easily specify linkage
+    const zycore_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = !no_libc,
+    });
+
+    const linkage = if (shared) std.builtin.LinkMode.dynamic else std.builtin.LinkMode.static;
+
+    const zycore = b.addLibrary(.{
+        .name = "Zycore",
+        .linkage = linkage,
+        .root_module = zycore_mod,
+    });
+
     if (shared) {
-        zycore = b.addSharedLibrary(.{
-            .name = "Zycore",
-            .target = target,
-            .optimize = optimize,
-            .link_libc = !no_libc,
-        });
-
         zycore.addWin32ResourceFile(.{
             .file = b.path("resources/VersionInfo.rc"),
         });
     } else {
-        zycore = b.addStaticLibrary(.{
-            .name = "Zycore",
-            .target = target,
-            .optimize = optimize,
-            .link_libc = !no_libc,
-        });
-
         zycore.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
+    }
+
+    if (use_asserts) {
+        switch (optimize) {
+            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => zycore.root_module.addCMacro("UNDEBUG", "1"),
+            else => {},
+        }
     }
 
     if (!no_libc) {
@@ -44,7 +48,6 @@ pub fn build(b: *std.Build) void {
     zycore.root_module.addCMacro("ZYCORE_SHOULD_EXPORT", "1");
     zycore.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
 
-    for (headers) |h| zycore.installHeader(b.path(h), h);
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
 
@@ -58,11 +61,8 @@ pub fn build(b: *std.Build) void {
     });
 
     zycore.addIncludePath(b.path("include"));
-
     b.installArtifact(zycore);
 
-    // TODO: Unify all of this code within a function so
-    // that we don't have to do this multiple times
     const string_exe = b.addExecutable(.{
         .name = "String",
         .target = target,
@@ -70,17 +70,14 @@ pub fn build(b: *std.Build) void {
         .link_libc = !no_libc,
     });
 
-    if (!shared) {
-        string_exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
+    if (use_asserts) {
+        switch (optimize) {
+            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => string_exe.root_module.addCMacro("UNDEBUG", "1"),
+            else => {},
+        }
     }
 
-    if (!no_libc) {
-        string_exe.linkLibC();
-    } else {
-        string_exe.root_module.addCMacro("ZYAN_NO_LIBC", "1");
-    }
-
-    string_exe.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
+    addExampleMacros(string_exe, no_libc, shared);
 
     string_exe.addCSourceFile(.{
         .file = b.path("examples/String.c"),
@@ -90,8 +87,8 @@ pub fn build(b: *std.Build) void {
     string_exe.addIncludePath(b.path("include"));
     string_exe.linkLibrary(zycore);
 
-    // TODO: Install within an examples/ directory
     const string_install = b.addInstallArtifact(string_exe, .{});
+
     string_install.step.dependOn(b.getInstallStep());
 
     const vector_exe = b.addExecutable(.{
@@ -101,17 +98,14 @@ pub fn build(b: *std.Build) void {
         .link_libc = !no_libc,
     });
 
-    if (!shared) {
-        vector_exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
+    if (use_asserts) {
+        switch (optimize) {
+            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => vector_exe.root_module.addCMacro("UNDEBUG", "1"),
+            else => {},
+        }
     }
 
-    if (!no_libc) {
-        vector_exe.linkLibC();
-    } else {
-        vector_exe.root_module.addCMacro("ZYAN_NO_LIBC", "1");
-    }
-
-    vector_exe.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
+    addExampleMacros(vector_exe, no_libc, shared);
 
     vector_exe.addCSourceFile(.{
         .file = b.path("examples/Vector.c"),
@@ -121,8 +115,8 @@ pub fn build(b: *std.Build) void {
     vector_exe.addIncludePath(b.path("include"));
     vector_exe.linkLibrary(zycore);
 
-    // TODO: Install within an examples/ directory
     const vector_install = b.addInstallArtifact(vector_exe, .{});
+
     vector_install.step.dependOn(b.getInstallStep());
 
     const examples_step = b.step("examples", "Build examples");
@@ -132,6 +126,18 @@ pub fn build(b: *std.Build) void {
     // TODO: Add tests
 
     // TODO: Perhaps support Doxygen?
+}
+
+fn addExampleMacros(exe: *std.Build.Step.Compile, no_libc: bool, shared: bool) void {
+    if (!shared) {
+        exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
+    }
+
+    if (no_libc) {
+        exe.root_module.addCMacro("ZYAN_NO_LIBC", "1");
+    }
+
+    exe.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
 }
 
 const zycore_flags: []const []const u8 = &.{
@@ -147,33 +153,6 @@ const dev_flags: []const []const u8 = &.{
 
 const wpo_flag: []const []const u8 = &.{
     "-flto",
-};
-
-const headers: []const []const u8 = &.{
-    "include/Zycore/API/Memory.h",
-    "include/Zycore/API/Process.h",
-    "include/Zycore/API/Synchronization.h",
-    "include/Zycore/API/Terminal.h",
-    "include/Zycore/API/Thread.h",
-
-    "include/Zycore/Internal/AtomicGNU.h",
-    "include/Zycore/Internal/AtomicMSVC.h",
-
-    "include/Zycore/Allocator.h",
-    "include/Zycore/ArgParse.h",
-    "include/Zycore/Atomic.h",
-    "include/Zycore/Bitset.h",
-    "include/Zycore/Comparison.h",
-    "include/Zycore/Defines.h",
-    "include/Zycore/Format.h",
-    "include/Zycore/LibC.h",
-    "include/Zycore/List.h",
-    "include/Zycore/Object.h",
-    "include/Zycore/Status.h",
-    "include/Zycore/String.h",
-    "include/Zycore/Types.h",
-    "include/Zycore/Vector.h",
-    "include/Zycore/Zycore.h",
 };
 
 const sources: []const []const u8 = &.{
