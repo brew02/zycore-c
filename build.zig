@@ -12,7 +12,7 @@ pub fn build(b: *std.Build) void {
 
     if (shared) {
         zycore = b.addSharedLibrary(.{
-            .name = "zycore",
+            .name = "Zycore",
             .target = target,
             .optimize = optimize,
             .link_libc = !no_libc,
@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
         });
     } else {
         zycore = b.addStaticLibrary(.{
-            .name = "zycore",
+            .name = "Zycore",
             .target = target,
             .optimize = optimize,
             .link_libc = !no_libc,
@@ -34,7 +34,12 @@ pub fn build(b: *std.Build) void {
 
     if (!no_libc) {
         zycore.linkLibC();
+    } else {
+        zycore.root_module.addCMacro("ZYAN_NO_LIBC", "1");
     }
+
+    zycore.root_module.addCMacro("ZYCORE_SHOULD_EXPORT", "1");
+    zycore.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
 
     for (headers) |h| zycore.installHeader(b.path(h), h);
     var flags = std.ArrayList([]const u8).init(b.allocator);
