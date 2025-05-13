@@ -13,7 +13,7 @@ pub fn ZYAN_MAKE_STATUS(comptime err: u32, comptime module: u32, comptime code: 
 fn unnamedArgTest(min: c.ZyanUSize, max: c.ZyanUSize) struct {
     c.ZyanStatus,
     c.ZyanVector,
-    ?[]const u8,
+    ?[*:0]const u8,
 } {
     const argv = &[_][*:0]const u8{
         "./test",
@@ -30,7 +30,7 @@ fn unnamedArgTest(min: c.ZyanUSize, max: c.ZyanUSize) struct {
     };
 
     var parsed: c.ZyanVector = undefined;
-    var err_tok: ?[]const u8 = null;
+    var err_tok: ?[*:0]const u8 = null;
     @memset(std.mem.asBytes(&parsed), 0);
     const status = c.ZyanArgParse(&cfg, &parsed, @ptrCast(&err_tok));
     return .{ status, parsed, err_tok };
@@ -41,4 +41,11 @@ test "too few unnamed args" {
 
     try std.testing.expectEqual(ZYAN_MAKE_STATUS(@as(c_uint, 1), c.ZYAN_MODULE_ARGPARSE, @as(c_uint, 0x01)), status);
     try std.testing.expectEqual(null, err_tok);
+}
+
+test "too many unnamed args" {
+    const status, _, const err_tok = unnamedArgTest(1, 1);
+
+    try std.testing.expectEqual(ZYAN_MAKE_STATUS(@as(c_uint, 1), c.ZYAN_MODULE_ARGPARSE, @as(c_uint, 0x02)), status);
+    try std.testing.expectEqualStrings("xxx", std.mem.span(err_tok.?));
 }
