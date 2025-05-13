@@ -80,7 +80,7 @@ CTestTestfile.cmake
 # MacOS
 .DS_Store
 
-build*
+build*/
 
 # MSVC
 .vs
@@ -98,3 +98,7 @@ doc/html
 /.vscode
 /.idea
 /cmake-build-*
+
+# Zig
+.zig-cache/
+zig-out/
