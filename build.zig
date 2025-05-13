@@ -4,11 +4,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const use_asserts = b.option(bool, "ZYAN_FORCE_ASSERTS", "Build Zycore with asserts in release builds") orelse false;
-    const shared = b.option(bool, "ZYCORE_BUILD_SHARED_LIB", "Build Zycore as a shared library") orelse false;
-    const no_libc = b.option(bool, "ZYAN_NO_LIBC", "Build Zycore without libc") orelse false;
-    const dev_build = b.option(bool, "ZYAN_DEV_MODE", "Build Zycore in developer mode") orelse false;
-    const wpo = b.option(bool, "ZYAN_WHOLE_PROGRAM_OPTIMIZATION", "Build Zycore with whole program optimization") orelse false;
+    const shared = b.option(bool, "shared", "Build Zycore as a shared library") orelse false;
+    const no_libc = b.option(bool, "no_libc", "Build Zycore without libc") orelse false;
+    const dev_build = b.option(bool, "dev", "Build Zycore in developer mode") orelse false;
+    const wpo = b.option(bool, "wpo", "Build Zycore with whole program optimization") orelse false;
 
     const zycore_mod = b.createModule(.{
         .target = target,
@@ -54,17 +53,6 @@ pub fn build(b: *std.Build) void {
         zycore.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
         string_exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
         vector_exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
-    }
-
-    if (use_asserts) {
-        switch (optimize) {
-            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => {
-                zycore.root_module.addCMacro("UNDEBUG", "1");
-                string_exe.root_module.addCMacro("UNDEBUG", "1");
-                vector_exe.root_module.addCMacro("UNDEBUG", "1");
-            },
-            else => {},
-        }
     }
 
     if (no_libc) {
@@ -119,6 +107,23 @@ pub fn build(b: *std.Build) void {
     examples_step.dependOn(&vector_install.step);
 
     // TODO: Add tests
+
+    const arg_parse_mod = b.createModule(.{
+        .root_source_file = b.path("tests/arg_parse.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    arg_parse_mod.linkLibrary(zycore);
+    const arg_parse_tests = b.addTest(.{
+        .root_module = arg_parse_mod,
+    });
+    arg_parse_tests.addIncludePath(b.path("include"));
+
+    const run_arg_parse_tests = b.addRunArtifact(arg_parse_tests);
+
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_arg_parse_tests.step);
 
     // TODO: Perhaps support Doxygen?
 }
