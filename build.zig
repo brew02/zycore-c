@@ -16,6 +16,18 @@ pub fn build(b: *std.Build) void {
         .link_libc = !no_libc,
     });
 
+    const string_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = !no_libc,
+    });
+
+    const vector_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = !no_libc,
+    });
+
     const linkage = if (shared) std.builtin.LinkMode.dynamic else std.builtin.LinkMode.static;
 
     const zycore = b.addLibrary(.{
@@ -24,29 +36,47 @@ pub fn build(b: *std.Build) void {
         .root_module = zycore_mod,
     });
 
+    const string_exe = b.addExecutable(.{
+        .name = "String",
+        .root_module = string_mod,
+    });
+
+    const vector_exe = b.addExecutable(.{
+        .name = "Vector",
+        .root_module = vector_mod,
+    });
+
     if (shared) {
         zycore.addWin32ResourceFile(.{
             .file = b.path("resources/VersionInfo.rc"),
         });
     } else {
         zycore.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
+        string_exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
+        vector_exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
     }
 
     if (use_asserts) {
         switch (optimize) {
-            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => zycore.root_module.addCMacro("UNDEBUG", "1"),
+            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => {
+                zycore.root_module.addCMacro("UNDEBUG", "1");
+                string_exe.root_module.addCMacro("UNDEBUG", "1");
+                vector_exe.root_module.addCMacro("UNDEBUG", "1");
+            },
             else => {},
         }
     }
 
-    if (!no_libc) {
-        zycore.linkLibC();
-    } else {
+    if (no_libc) {
         zycore.root_module.addCMacro("ZYAN_NO_LIBC", "1");
+        string_exe.root_module.addCMacro("ZYAN_NO_LIBC", "1");
+        vector_exe.root_module.addCMacro("ZYAN_NO_LIBC", "1");
     }
 
     zycore.root_module.addCMacro("ZYCORE_SHOULD_EXPORT", "1");
     zycore.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
+    string_exe.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
+    vector_exe.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
 
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
@@ -59,53 +89,13 @@ pub fn build(b: *std.Build) void {
         .files = sources,
         .flags = flags.items,
     });
-
     zycore.addIncludePath(b.path("include"));
-    b.installArtifact(zycore);
-
-    const string_exe = b.addExecutable(.{
-        .name = "String",
-        .target = target,
-        .optimize = optimize,
-        .link_libc = !no_libc,
-    });
-
-    if (use_asserts) {
-        switch (optimize) {
-            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => string_exe.root_module.addCMacro("UNDEBUG", "1"),
-            else => {},
-        }
-    }
-
-    addExampleMacros(string_exe, no_libc, shared);
 
     string_exe.addCSourceFile(.{
         .file = b.path("examples/String.c"),
         .flags = flags.items,
     });
-
     string_exe.addIncludePath(b.path("include"));
-    string_exe.linkLibrary(zycore);
-
-    const string_install = b.addInstallArtifact(string_exe, .{});
-
-    string_install.step.dependOn(b.getInstallStep());
-
-    const vector_exe = b.addExecutable(.{
-        .name = "Vector",
-        .target = target,
-        .optimize = optimize,
-        .link_libc = !no_libc,
-    });
-
-    if (use_asserts) {
-        switch (optimize) {
-            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => vector_exe.root_module.addCMacro("UNDEBUG", "1"),
-            else => {},
-        }
-    }
-
-    addExampleMacros(vector_exe, no_libc, shared);
 
     vector_exe.addCSourceFile(.{
         .file = b.path("examples/Vector.c"),
@@ -113,10 +103,15 @@ pub fn build(b: *std.Build) void {
     });
 
     vector_exe.addIncludePath(b.path("include"));
+
+    b.installArtifact(zycore);
+    string_exe.linkLibrary(zycore);
     vector_exe.linkLibrary(zycore);
 
+    const string_install = b.addInstallArtifact(string_exe, .{});
     const vector_install = b.addInstallArtifact(vector_exe, .{});
 
+    string_install.step.dependOn(b.getInstallStep());
     vector_install.step.dependOn(b.getInstallStep());
 
     const examples_step = b.step("examples", "Build examples");
@@ -126,18 +121,6 @@ pub fn build(b: *std.Build) void {
     // TODO: Add tests
 
     // TODO: Perhaps support Doxygen?
-}
-
-fn addExampleMacros(exe: *std.Build.Step.Compile, no_libc: bool, shared: bool) void {
-    if (!shared) {
-        exe.root_module.addCMacro("ZYCORE_STATIC_BUILD", "1");
-    }
-
-    if (no_libc) {
-        exe.root_module.addCMacro("ZYAN_NO_LIBC", "1");
-    }
-
-    exe.root_module.addCMacro("_CRT_SECURE_NO_WARNINGS", "1");
 }
 
 const zycore_flags: []const []const u8 = &.{
