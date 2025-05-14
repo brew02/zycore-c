@@ -10,18 +10,18 @@ pub fn ZYAN_MAKE_STATUS(comptime err: u32, comptime module: u32, comptime code: 
     return ((err & 1) << 31) | ((module & 0x7FF) << 20) | (code & 0xFFFFF);
 }
 
-fn cvtStringView(sv: *const c.ZyanStringView) ?[:0]const u8 {
+fn cvtStringView(sv: *const c.ZyanStringView) [:0]const u8 {
     var buf: ?[*:0]const u8 = null;
-    if (c.ZYAN_FAILED(c.ZyanStringViewGetData(sv, @ptrCast(&buf))) == 1) return null;
+    if (c.ZYAN_FAILED(c.ZyanStringViewGetData(sv, @ptrCast(&buf))) == 1) @panic("Failed to get string data");
     var len: c.ZyanUSize = 0;
-    if (c.ZYAN_FAILED(c.ZyanStringViewGetSize(sv, &len)) == 1) return null;
+    if (c.ZYAN_FAILED(c.ZyanStringViewGetSize(sv, &len)) == 1) @panic("Failed to get string length");
 
     if (buf) |val| {
         const ret = std.mem.span(val);
-        if (ret.len != len) return null;
+        if (ret.len != len) @panic("String length is not equal");
         return ret;
     } else {
-        return null;
+        @panic("String buffer is null");
     }
 }
 
@@ -69,8 +69,8 @@ test "perfect fit unnamed args" {
     const status, const parsed, _ = unnamedArgTest(2, 2);
 
     try std.testing.expect(c.ZYAN_SUCCESS(status));
-    var size: c.ZyanUSize = 0;
 
+    var size: c.ZyanUSize = 0;
     try std.testing.expect(c.ZYAN_SUCCESS(c.ZyanVectorGetSize(&parsed, &size)));
     try std.testing.expectEqual(2, size);
 
@@ -79,14 +79,56 @@ test "perfect fit unnamed args" {
     try std.testing.expect(arg.?.has_value == 1);
 
     var val = cvtStringView(&arg.?.value);
-    try std.testing.expect(val != null);
-    try std.testing.expectEqualStrings("a", val.?);
+    try std.testing.expectEqualStrings("a", val);
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 1)));
     try std.testing.expect(arg != null);
     try std.testing.expect(arg.?.has_value == 1);
 
     val = cvtStringView(&arg.?.value);
-    try std.testing.expect(val != null);
-    try std.testing.expectEqualStrings("xxx", val.?);
+    try std.testing.expectEqualStrings("xxx", val);
+}
+
+test "mixed bool and value args: single dash" {
+    const argv = &[_][*:0]const u8{
+        "./test",
+        "-aio42",
+        "-n",
+        "xxx",
+    };
+
+    const args: []const c.ZyanArgParseDefinition = &.{
+        .{ .name = "-o", .boolean = c.ZYAN_FALSE, .required = c.ZYAN_FALSE },
+        .{ .name = "-a", .boolean = c.ZYAN_TRUE, .required = c.ZYAN_FALSE },
+        .{ .name = "-n", .boolean = c.ZYAN_FALSE, .required = c.ZYAN_FALSE },
+        .{ .name = "-i", .boolean = c.ZYAN_TRUE, .required = c.ZYAN_FALSE },
+        .{ .name = null, .boolean = c.ZYAN_FALSE, .required = c.ZYAN_FALSE },
+    };
+
+    const cfg: c.ZyanArgParseConfig = .{
+        .argv = @ptrCast(@constCast(argv)),
+        .argc = 4,
+        .min_unnamed_args = 0,
+        .max_unnamed_args = 0,
+        .args = @ptrCast(@constCast(args)),
+    };
+
+    var parsed: c.ZyanVector = undefined;
+    @memset(std.mem.asBytes(&parsed), 0);
+    const status = c.ZyanArgParse(&cfg, &parsed, null);
+    try std.testing.expect(c.ZYAN_SUCCESS(status));
+
+    var size: c.ZyanUSize = 0;
+    try std.testing.expect(c.ZYAN_SUCCESS(c.ZyanVectorGetSize(&parsed, &size)));
+    try std.testing.expectEqual(4, size);
+
+    var arg: ?*const c.ZyanArgParseArg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 0)));
+    try std.testing.expect(arg != null);
+    try std.testing.expectEqualStrings("-a", std.mem.span(arg.?.def.*.name));
+    try std.testing.expect(arg.?.has_value == 0);
+
+    arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 1)));
+    try std.testing.expect(arg != null);
+    try std.testing.expectEqualStrings("-i", std.mem.span(arg.?.def.*.name));
+    try std.testing.expect(arg.?.has_value == 0);
 }
