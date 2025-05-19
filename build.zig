@@ -106,24 +106,51 @@ pub fn build(b: *std.Build) void {
     examples_step.dependOn(&string_install.step);
     examples_step.dependOn(&vector_install.step);
 
-    // TODO: Add tests
-
-    const arg_parse_mod = b.createModule(.{
+    const arg_parse_tests_mod = b.createModule(.{
         .root_source_file = b.path("tests/arg_parse.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    arg_parse_mod.linkLibrary(zycore);
+    const string_tests_mod = b.createModule(.{
+        .root_source_file = b.path("tests/string.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const vector_tests_mod = b.createModule(.{
+        .root_source_file = b.path("tests/vector.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    arg_parse_tests_mod.linkLibrary(zycore);
+    string_tests_mod.linkLibrary(zycore);
+    vector_tests_mod.linkLibrary(zycore);
+
     const arg_parse_tests = b.addTest(.{
-        .root_module = arg_parse_mod,
+        .root_module = arg_parse_tests_mod,
     });
     arg_parse_tests.addIncludePath(b.path("include"));
 
+    const string_tests = b.addTest(.{
+        .root_module = string_tests_mod,
+    });
+    string_tests.addIncludePath(b.path("include"));
+
+    const vector_tests = b.addTest(.{
+        .root_module = vector_tests_mod,
+    });
+    vector_tests.addIncludePath(b.path("include"));
+
     const run_arg_parse_tests = b.addRunArtifact(arg_parse_tests);
+    const run_string_tests = b.addRunArtifact(string_tests);
+    const run_vector_tests = b.addRunArtifact(vector_tests);
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_arg_parse_tests.step);
+    test_step.dependOn(&run_string_tests.step);
+    test_step.dependOn(&run_vector_tests.step);
 
     // TODO: Perhaps support Doxygen?
 }
