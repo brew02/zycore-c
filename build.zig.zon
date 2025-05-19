@@ -1,0 +1,22 @@
+.{
+    .name = .zycore_c,
+    .version = "1.5.2",
+    .minimum_zig_version = "0.14.0",
+    .fingerprint = 0xd2f24a049f0ef78f,
+    .dependencies = .{},
+
+    .paths = .{
+        ".github",
+        "examples",
+        "include",
+        "resources",
+        "src",
+        "tests",
+        ".gitignore",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "Doxyfile.in",
+        "README.md",
+    },
+}
