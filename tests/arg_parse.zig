@@ -1,5 +1,13 @@
 const std = @import("std");
-const s = @import("status.zig");
+const expectEqualStrings = std.testing.expectEqualStrings;
+const expectEqual = std.testing.expectEqual;
+const expect = std.testing.expect;
+const zyanMakeStatus = @import("status.zig").zyanMakeStatus;
+
+const status_success = zyanMakeStatus(0, c.ZYAN_MODULE_ZYCORE, 0x00);
+const status_too_few_args = zyanMakeStatus(1, c.ZYAN_MODULE_ARGPARSE, 0x01);
+const status_too_many_args = zyanMakeStatus(1, c.ZYAN_MODULE_ARGPARSE, 0x02);
+const status_required_arg_missing = zyanMakeStatus(1, c.ZYAN_MODULE_ARGPARSE, 0x04);
 
 const c = @cImport({
     @cInclude("Zycore/ArgParse.h");
@@ -51,35 +59,35 @@ fn unnamedArgTest(min: c.ZyanUSize, max: c.ZyanUSize) struct {
 test "too few args: unnamed args" {
     const status, _, const err_tok = unnamedArgTest(5, 5);
 
-    try std.testing.expectEqual(s.ZYAN_MAKE_STATUS(@as(c_uint, 1), c.ZYAN_MODULE_ARGPARSE, @as(c_uint, 0x01)), status);
-    try std.testing.expectEqual(null, err_tok);
+    try expectEqual(status_too_few_args, status);
+    try expectEqual(null, err_tok);
 }
 
 test "too many args: unnamed args" {
     const status, _, const err_tok = unnamedArgTest(1, 1);
 
-    try std.testing.expectEqual(s.ZYAN_MAKE_STATUS(@as(c_uint, 1), c.ZYAN_MODULE_ARGPARSE, @as(c_uint, 0x02)), status);
-    try std.testing.expectEqualStrings("xxx", std.mem.span(err_tok.?));
+    try expectEqual(status_too_many_args, status);
+    try expectEqualStrings("xxx", std.mem.span(err_tok.?));
 }
 
 test "perfect fit: unnamed args" {
     const status, const parsed, _ = unnamedArgTest(2, 2);
 
-    try std.testing.expect(c.ZYAN_SUCCESS(status));
+    try expectEqual(status_success, status);
 
     var size: c.ZyanUSize = 0;
-    try std.testing.expect(c.ZYAN_SUCCESS(c.ZyanVectorGetSize(&parsed, &size)));
-    try std.testing.expectEqual(2, size);
+    try expectEqual(status_success, c.ZyanVectorGetSize(&parsed, &size));
+    try expectEqual(2, size);
 
     var arg: ?*const c.ZyanArgParseArg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 0)));
-    try std.testing.expect(arg != null);
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("a", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("a", cvtStringView(&arg.?.value));
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 1)));
-    try std.testing.expect(arg != null);
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("xxx", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("xxx", cvtStringView(&arg.?.value));
 }
 
 test "mixed bool and value args: single dash" {
@@ -109,33 +117,33 @@ test "mixed bool and value args: single dash" {
     var parsed: c.ZyanVector = undefined;
     @memset(std.mem.asBytes(&parsed), 0);
     const status = c.ZyanArgParse(&cfg, &parsed, null);
-    try std.testing.expect(c.ZYAN_SUCCESS(status));
+    try expectEqual(status_success, status);
 
     var size: c.ZyanUSize = 0;
-    try std.testing.expect(c.ZYAN_SUCCESS(c.ZyanVectorGetSize(&parsed, &size)));
-    try std.testing.expectEqual(4, size);
+    try expectEqual(status_success, c.ZyanVectorGetSize(&parsed, &size));
+    try expectEqual(4, size);
 
     var arg: ?*const c.ZyanArgParseArg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 0)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("-a", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 0);
+    try expect(arg != null);
+    try expectEqualStrings("-a", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 0);
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 1)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("-i", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 0);
+    try expect(arg != null);
+    try expectEqualStrings("-i", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 0);
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 2)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("-o", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("42", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expectEqualStrings("-o", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("42", cvtStringView(&arg.?.value));
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 3)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("-n", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("xxx", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expectEqualStrings("-n", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("xxx", cvtStringView(&arg.?.value));
 }
 
 test "perfect fit: double dashed args" {
@@ -163,22 +171,22 @@ test "perfect fit: double dashed args" {
     var parsed: c.ZyanVector = undefined;
     @memset(std.mem.asBytes(&parsed), 0);
     const status = c.ZyanArgParse(&cfg, &parsed, null);
-    try std.testing.expect(c.ZYAN_SUCCESS(status));
+    try expectEqual(status_success, status);
 
     var size: c.ZyanUSize = 0;
-    try std.testing.expect(c.ZYAN_SUCCESS(c.ZyanVectorGetSize(&parsed, &size)));
-    try std.testing.expectEqual(2, size);
+    try expectEqual(status_success, c.ZyanVectorGetSize(&parsed, &size));
+    try expectEqual(2, size);
 
     var arg: ?*const c.ZyanArgParseArg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 0)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("--help", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 0);
+    try expect(arg != null);
+    try expectEqualStrings("--help", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 0);
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 1)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("--stuff", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("1337", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expectEqualStrings("--stuff", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("1337", cvtStringView(&arg.?.value));
 }
 
 test "missing required arg: mixed args" {
@@ -206,8 +214,8 @@ test "missing required arg: mixed args" {
     var err_tok: ?[*:0]const u8 = null;
     @memset(std.mem.asBytes(&parsed), 0);
     const status = c.ZyanArgParse(&cfg, &parsed, @ptrCast(&err_tok));
-    try std.testing.expectEqual(s.ZYAN_MAKE_STATUS(@as(c_uint, 1), c.ZYAN_MODULE_ARGPARSE, @as(c_uint, 0x04)), status);
-    try std.testing.expectEqualStrings("-n", std.mem.span(err_tok.?));
+    try expectEqual(status_required_arg_missing, status);
+    try expectEqualStrings("-n", std.mem.span(err_tok.?));
 }
 
 test "stuff: mixed args" {
@@ -236,32 +244,32 @@ test "stuff: mixed args" {
     var parsed: c.ZyanVector = undefined;
     @memset(std.mem.asBytes(&parsed), 0);
     const status = c.ZyanArgParse(&cfg, &parsed, null);
-    try std.testing.expect(c.ZYAN_SUCCESS(status));
+    try expectEqual(status_success, status);
 
     var size: c.ZyanUSize = 0;
-    try std.testing.expect(c.ZYAN_SUCCESS(c.ZyanVectorGetSize(&parsed, &size)));
-    try std.testing.expectEqual(4, size);
+    try expectEqual(status_success, c.ZyanVectorGetSize(&parsed, &size));
+    try expectEqual(4, size);
 
     var arg: ?*const c.ZyanArgParseArg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 0)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("--feature-xyz", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 0);
+    try expect(arg != null);
+    try expectEqualStrings("--feature-xyz", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 0);
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 1)));
-    try std.testing.expect(arg != null);
-    try std.testing.expectEqualStrings("-n", std.mem.span(arg.?.def.*.name));
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("5", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expectEqualStrings("-n", std.mem.span(arg.?.def.*.name));
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("5", cvtStringView(&arg.?.value));
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 2)));
-    try std.testing.expect(arg != null);
-    try std.testing.expect(arg.?.def == null);
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("blah.c", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expect(arg.?.def == null);
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("blah.c", cvtStringView(&arg.?.value));
 
     arg = @alignCast(@ptrCast(c.ZyanVectorGet(&parsed, 3)));
-    try std.testing.expect(arg != null);
-    try std.testing.expect(arg.?.def == null);
-    try std.testing.expect(arg.?.has_value == 1);
-    try std.testing.expectEqualStrings("woof.moo", cvtStringView(&arg.?.value));
+    try expect(arg != null);
+    try expect(arg.?.def == null);
+    try expect(arg.?.has_value == 1);
+    try expectEqualStrings("woof.moo", cvtStringView(&arg.?.value));
 }
